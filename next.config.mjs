@@ -14,7 +14,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ["@prisma/client", "pg"],
+  serverExternalPackages: ["@prisma/client"],
 }
 
 export default nextConfig
