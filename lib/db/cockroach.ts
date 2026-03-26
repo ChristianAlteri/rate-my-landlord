@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma"
+import { getPrisma } from "@/lib/prisma"
 
 type PropertyRow = {
   id: string
@@ -41,7 +41,7 @@ export async function crdbQueryHomeProperties(): Promise<
     }
   >
 > {
-  const rows = await prisma.properties.findMany({
+  const rows = await getPrisma().properties.findMany({
     take: 6,
     orderBy: { created_at: "desc" },
     include: { reviews: { select: { rating: true } } },
@@ -61,14 +61,14 @@ export async function crdbQueryPropertiesList(search?: string): Promise<
   const q = search?.trim()
 
   if (!q) {
-    const rows = await prisma.properties.findMany({
+    const rows = await getPrisma().properties.findMany({
       orderBy: { created_at: "desc" },
       include: { reviews: { select: { rating: true } } },
     })
     return rows.map((row) => mapListRow(row))
   }
 
-  const rows = await prisma.properties.findMany({
+  const rows = await getPrisma().properties.findMany({
     where: {
       OR: [
         { address: { contains: q, mode: "insensitive" } },
@@ -97,7 +97,7 @@ export async function crdbQueryPropertyDetail(id: string): Promise<{
     created_at: Date
   }>
 } | null> {
-  const p = await prisma.properties.findUnique({
+  const p = await getPrisma().properties.findUnique({
     where: { id },
     include: {
       reviews: {
@@ -127,7 +127,7 @@ export async function crdbFindDuplicateProperty(
   address: string,
   postcode: string,
 ): Promise<string | null> {
-  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+  const rows = await getPrisma().$queryRaw<Array<{ id: string }>>`
     SELECT id FROM properties
     WHERE lower(trim(address)) = lower(trim(${address}))
       AND lower(trim(postcode)) = lower(trim(${postcode}))
@@ -141,7 +141,7 @@ export async function crdbInsertProperty(input: {
   postcode: string
   landlord_name: string | null
 }): Promise<{ id: string }> {
-  const row = await prisma.properties.create({
+  const row = await getPrisma().properties.create({
     data: {
       address: input.address,
       postcode: input.postcode,
@@ -158,7 +158,7 @@ export async function crdbInsertReview(input: {
   rating: number
   comment: string
 }): Promise<void> {
-  await prisma.reviews.create({
+  await getPrisma().reviews.create({
     data: {
       property_id: input.property_id,
       username: input.username,
