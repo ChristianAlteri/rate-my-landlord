@@ -1,4 +1,4 @@
-import { getPool } from "@/lib/db/pool"
+import { prisma } from "@/lib/prisma"
 
 type PropertyRow = {
   id: string
@@ -9,156 +9,15 @@ type PropertyRow = {
   created_at: Date
 }
 
-export async function crdbQueryHomeProperties(): Promise<
-  Array<
-    PropertyRow & {
-      avgRating: number | null
-      reviewCount: number
-      reviews: Array<{ rating: number }>
-    }
-  >
-> {
-  const pool = getPool()
-  const res = await pool.query<{
-    id: string
-    address: string
-    postcode: string
-    landlord_name: string | null
-    borough: string | null
-    created_at: Date
-    review_count: string
-    avg_rating: string | null
-  }>(
-    `
-    SELECT
-      p.id,
-      p.address,
-      p.postcode,
-      p.landlord_name,
-      p.borough,
-      p.created_at,
-      COUNT(r.id)::text AS review_count,
-      AVG(r.rating)::text AS avg_rating
-    FROM properties p
-    LEFT JOIN reviews r ON r.property_id = p.id
-    GROUP BY p.id, p.address, p.postcode, p.landlord_name, p.borough, p.created_at
-    ORDER BY p.created_at DESC
-    LIMIT 6
-    `,
-  )
-
-  return res.rows.map((row) => {
-    const reviewCount = Number.parseInt(row.review_count, 10) || 0
-    const avgRating =
-      row.avg_rating !== null && row.avg_rating !== ""
-        ? Number.parseFloat(row.avg_rating)
-        : null
-    return {
-      id: row.id,
-      address: row.address,
-      postcode: row.postcode,
-      landlord_name: row.landlord_name,
-      borough: row.borough,
-      created_at: row.created_at,
-      reviewCount,
-      avgRating,
-      reviews: [] as Array<{ rating: number }>,
-    }
-  })
-}
-
-export async function crdbQueryPropertiesList(search?: string): Promise<
-  Array<
-    PropertyRow & {
-      avgRating: number | null
-      reviewCount: number
-      reviews: Array<{ rating: number }>
-    }
-  >
-> {
-  const pool = getPool()
-  const q = search?.trim()
-
-  if (!q) {
-    const res = await pool.query<{
-      id: string
-      address: string
-      postcode: string
-      landlord_name: string | null
-      borough: string | null
-      created_at: Date
-      review_count: string
-      avg_rating: string | null
-    }>(
-      `
-      SELECT
-        p.id,
-        p.address,
-        p.postcode,
-        p.landlord_name,
-        p.borough,
-        p.created_at,
-        COUNT(r.id)::text AS review_count,
-        AVG(r.rating)::text AS avg_rating
-      FROM properties p
-      LEFT JOIN reviews r ON r.property_id = p.id
-      GROUP BY p.id, p.address, p.postcode, p.landlord_name, p.borough, p.created_at
-      ORDER BY p.created_at DESC
-      `,
-    )
-    return res.rows.map((row) => mapListRow(row))
-  }
-
-  const needle = `%${q.replace(/%/g, "\\%").replace(/_/g, "\\_")}%`
-  const res = await pool.query<{
-    id: string
-    address: string
-    postcode: string
-    landlord_name: string | null
-    borough: string | null
-    created_at: Date
-    review_count: string
-    avg_rating: string | null
-  }>(
-    `
-    SELECT
-      p.id,
-      p.address,
-      p.postcode,
-      p.landlord_name,
-      p.borough,
-      p.created_at,
-      COUNT(r.id)::text AS review_count,
-      AVG(r.rating)::text AS avg_rating
-    FROM properties p
-    LEFT JOIN reviews r ON r.property_id = p.id
-    WHERE
-      p.address ILIKE $1 ESCAPE '\\'
-      OR p.postcode ILIKE $1 ESCAPE '\\'
-      OR COALESCE(p.landlord_name, '') ILIKE $1 ESCAPE '\\'
-      OR COALESCE(p.borough, '') ILIKE $1 ESCAPE '\\'
-    GROUP BY p.id, p.address, p.postcode, p.landlord_name, p.borough, p.created_at
-    ORDER BY p.created_at DESC
-    `,
-    [needle],
-  )
-  return res.rows.map((row) => mapListRow(row))
-}
-
-function mapListRow(row: {
-  id: string
-  address: string
-  postcode: string
-  landlord_name: string | null
-  borough: string | null
-  created_at: Date
-  review_count: string
-  avg_rating: string | null
-}) {
-  const reviewCount = Number.parseInt(row.review_count, 10) || 0
+function mapListRow(
+  row: PropertyRow & {
+    reviews: Array<{ rating: bigint }>
+  },
+) {
+  const reviewCount = row.reviews.length
   const avgRating =
-    row.avg_rating !== null && row.avg_rating !== ""
-      ? Number.parseFloat(row.avg_rating)
+    reviewCount > 0
+      ? row.reviews.reduce((sum, r) => sum + Number(r.rating), 0) / reviewCount
       : null
   return {
     id: row.id,
@@ -171,6 +30,57 @@ function mapListRow(row: {
     avgRating,
     reviews: [] as Array<{ rating: number }>,
   }
+}
+
+export async function crdbQueryHomeProperties(): Promise<
+  Array<
+    PropertyRow & {
+      avgRating: number | null
+      reviewCount: number
+      reviews: Array<{ rating: number }>
+    }
+  >
+> {
+  const rows = await prisma.properties.findMany({
+    take: 6,
+    orderBy: { created_at: "desc" },
+    include: { reviews: { select: { rating: true } } },
+  })
+  return rows.map((row) => mapListRow(row))
+}
+
+export async function crdbQueryPropertiesList(search?: string): Promise<
+  Array<
+    PropertyRow & {
+      avgRating: number | null
+      reviewCount: number
+      reviews: Array<{ rating: number }>
+    }
+  >
+> {
+  const q = search?.trim()
+
+  if (!q) {
+    const rows = await prisma.properties.findMany({
+      orderBy: { created_at: "desc" },
+      include: { reviews: { select: { rating: true } } },
+    })
+    return rows.map((row) => mapListRow(row))
+  }
+
+  const rows = await prisma.properties.findMany({
+    where: {
+      OR: [
+        { address: { contains: q, mode: "insensitive" } },
+        { postcode: { contains: q, mode: "insensitive" } },
+        { landlord_name: { contains: q, mode: "insensitive" } },
+        { borough: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    orderBy: { created_at: "desc" },
+    include: { reviews: { select: { rating: true } } },
+  })
+  return rows.map((row) => mapListRow(row))
 }
 
 export async function crdbQueryPropertyDetail(id: string): Promise<{
@@ -187,36 +97,27 @@ export async function crdbQueryPropertyDetail(id: string): Promise<{
     created_at: Date
   }>
 } | null> {
-  const pool = getPool()
-  const prop = await pool.query<PropertyRow>(
-    `SELECT id, address, postcode, landlord_name, borough, created_at FROM properties WHERE id = $1`,
-    [id],
-  )
-  if (prop.rows.length === 0) return null
-  const p = prop.rows[0]
-  const rev = await pool.query<{
-    id: string
-    username: string
-    rating: number
-    comment: string
-    created_at: Date
-  }>(
-    `
-    SELECT id, username, rating, comment, created_at
-    FROM reviews
-    WHERE property_id = $1
-    ORDER BY created_at DESC
-    `,
-    [id],
-  )
+  const p = await prisma.properties.findUnique({
+    where: { id },
+    include: {
+      reviews: {
+        orderBy: { created_at: "desc" },
+      },
+    },
+  })
+  if (!p) return null
+
   return {
     id: p.id,
     address: p.address,
     postcode: p.postcode,
     landlord_name: p.landlord_name,
     borough: p.borough,
-    reviews: rev.rows.map((r) => ({
-      ...r,
+    reviews: p.reviews.map((r) => ({
+      id: r.id,
+      username: r.username,
+      rating: Number(r.rating),
+      comment: r.comment,
       created_at: r.created_at,
     })),
   }
@@ -226,17 +127,13 @@ export async function crdbFindDuplicateProperty(
   address: string,
   postcode: string,
 ): Promise<string | null> {
-  const pool = getPool()
-  const res = await pool.query<{ id: string }>(
-    `
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id FROM properties
-    WHERE lower(trim(address)) = lower(trim($1))
-      AND lower(trim(postcode)) = lower(trim($2))
+    WHERE lower(trim(address)) = lower(trim(${address}))
+      AND lower(trim(postcode)) = lower(trim(${postcode}))
     LIMIT 1
-    `,
-    [address, postcode],
-  )
-  return res.rows[0]?.id ?? null
+  `
+  return rows[0]?.id ?? null
 }
 
 export async function crdbInsertProperty(input: {
@@ -244,16 +141,15 @@ export async function crdbInsertProperty(input: {
   postcode: string
   landlord_name: string | null
 }): Promise<{ id: string }> {
-  const pool = getPool()
-  const res = await pool.query<{ id: string }>(
-    `
-    INSERT INTO properties (address, postcode, landlord_name)
-    VALUES ($1, $2, $3)
-    RETURNING id
-    `,
-    [input.address, input.postcode, input.landlord_name],
-  )
-  return { id: res.rows[0].id }
+  const row = await prisma.properties.create({
+    data: {
+      address: input.address,
+      postcode: input.postcode,
+      landlord_name: input.landlord_name,
+    },
+    select: { id: true },
+  })
+  return { id: row.id }
 }
 
 export async function crdbInsertReview(input: {
@@ -262,12 +158,12 @@ export async function crdbInsertReview(input: {
   rating: number
   comment: string
 }): Promise<void> {
-  const pool = getPool()
-  await pool.query(
-    `
-    INSERT INTO reviews (property_id, username, rating, comment)
-    VALUES ($1, $2, $3, $4)
-    `,
-    [input.property_id, input.username, input.rating, input.comment],
-  )
+  await prisma.reviews.create({
+    data: {
+      property_id: input.property_id,
+      username: input.username,
+      rating: BigInt(input.rating),
+      comment: input.comment,
+    },
+  })
 }

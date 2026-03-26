@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { Prisma } from "@/lib/generated/prisma/client"
 import { isCockroachEnabled, isMockDataEnabled } from "@/lib/data-mode"
 import {
   crdbFindDuplicateProperty,
@@ -37,8 +38,7 @@ export async function submitProperty(input: {
       revalidatePath("/properties")
       return { ok: true, id }
     } catch (e: unknown) {
-      const err = e as { code?: string }
-      if (err.code === "23505") {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
         const dup = await crdbFindDuplicateProperty(address, normalizedPostcode)
         if (dup) return { ok: false, error: "duplicate", existingId: dup }
         return { ok: false, error: "This property already exists." }
