@@ -3,8 +3,9 @@
  * @see https://ideal-postcodes.co.uk/guides/postcode-regex (broad pattern)
  */
 
+/** Broad UK outward + inward (incl. London EC1A, SW1A, etc.) */
 const UK_POSTCODE_LOOSE =
-  /^(GIR\s*0AA|[A-Z]{1,2}\d[\dA-Z]?\s*\d[A-Z]{2})$/i
+  /^(GIR\s*0AA|[A-Z]{1,2}\d[\dA-Z]{0,2}\s*\d[A-Z]{2})$/i
 
 /**
  * Normalise to outward + inward with a single space, uppercase.

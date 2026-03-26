@@ -47,13 +47,11 @@ export function AddPropertyForm({ defaultAddress = "", defaultPostcode = "", tri
   const [managedBy, setManagedBy] = useState("")
   const [agencyName, setAgencyName] = useState("")
   const [sessionToken, setSessionToken] = useState("")
-  const [addressGateOk, setAddressGateOk] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
     if (open) {
       setSessionToken(crypto.randomUUID())
-      setAddressGateOk(false)
       setError(null)
     }
   }, [open])
@@ -61,11 +59,6 @@ export function AddPropertyForm({ defaultAddress = "", defaultPostcode = "", tri
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-
-    if (!addressGateOk) {
-      setError("Pick an address from the suggestions, or use manual entry.")
-      return
-    }
 
     if (!address.trim() || !postcode.trim()) {
       setError("Address and postcode are required.")
@@ -81,29 +74,35 @@ export function AddPropertyForm({ defaultAddress = "", defaultPostcode = "", tri
       landlordName = `Managed by ${agencyName.trim()}`
     }
 
-    const result = await submitProperty({
-      address: address.trim(),
-      postcode: normalizedPostcode,
-      landlord_name: landlordName || null,
-    })
-    setIsSubmitting(false)
+    try {
+      const result = await submitProperty({
+        address: address.trim(),
+        postcode: normalizedPostcode,
+        landlord_name: landlordName || null,
+      })
 
-    if (!result.ok) {
-      if ("existingId" in result && result.existingId) {
-        setError("This property already exists! Redirecting you there...")
-        setTimeout(() => {
-          setOpen(false)
-          router.push(`/properties/${result.existingId}`)
-        }, 1200)
+      if (!result.ok) {
+        if ("existingId" in result && result.existingId) {
+          setError("This property already exists! Redirecting you there...")
+          setTimeout(() => {
+            setOpen(false)
+            router.push(`/properties/${result.existingId}`)
+          }, 1200)
+          return
+        }
+        setError(typeof result.error === "string" ? result.error : "Could not add property.")
         return
       }
-      setError(result.error)
-      return
-    }
 
-    setOpen(false)
-    router.push(`/properties/${result.id}`)
-    router.refresh()
+      setOpen(false)
+      router.push(`/properties/${result.id}`)
+      router.refresh()
+    } catch (err) {
+      console.error(err)
+      setError("Something went wrong saving the property. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -145,7 +144,6 @@ export function AddPropertyForm({ defaultAddress = "", defaultPostcode = "", tri
             postcode={postcode}
             onAddressChange={setAddress}
             onPostcodeChange={setPostcode}
-            onVerificationChange={setAddressGateOk}
           />
 
           <div className="space-y-2">
@@ -180,7 +178,7 @@ export function AddPropertyForm({ defaultAddress = "", defaultPostcode = "", tri
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !addressGateOk}>
+            <Button type="submit" disabled={isSubmitting || !address.trim() || !postcode.trim()}>
               {isSubmitting ? "Adding..." : "Add Property"}
             </Button>
           </div>

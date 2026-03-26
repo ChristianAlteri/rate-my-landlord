@@ -20,8 +20,6 @@ type AddressAutocompleteProps = {
   postcode: string
   onAddressChange: (v: string) => void
   onPostcodeChange: (v: string) => void
-  /** Called when the user may submit (picked a suggestion, manual mode, or Places is off). */
-  onVerificationChange: (verified: boolean) => void
 }
 
 export function AddressAutocomplete({
@@ -30,7 +28,6 @@ export function AddressAutocomplete({
   postcode,
   onAddressChange,
   onPostcodeChange,
-  onVerificationChange,
 }: AddressAutocompleteProps) {
   const listId = useId()
   const [configured, setConfigured] = useState<boolean | null>(null)
@@ -46,18 +43,6 @@ export function AddressAutocomplete({
   useEffect(() => {
     isAddressSearchConfigured().then(setConfigured)
   }, [])
-
-  useEffect(() => {
-    if (configured === null) {
-      onVerificationChange(false)
-      return
-    }
-    if (!configured) {
-      onVerificationChange(true)
-      return
-    }
-    onVerificationChange(picked || manualMode)
-  }, [configured, picked, manualMode, onVerificationChange])
 
   useEffect(() => {
     if (picked || manualMode || !configured) return

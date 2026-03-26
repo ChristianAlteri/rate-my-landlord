@@ -26,9 +26,10 @@ export function getPrisma(): InstanceType<typeof PrismaClient> {
     globalForPrisma.pgPool ??
     new Pool({
       connectionString: url,
-      max: 8,
+      // Vercel serverless: one connection per warm instance avoids exhausting Cockroach connection limits
+      max: process.env.VERCEL ? 1 : 8,
       idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 15_000,
     })
   globalForPrisma.pgPool = pool
 

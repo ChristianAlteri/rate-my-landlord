@@ -24,6 +24,7 @@ export async function submitProperty(input: {
 
   const normalizedPostcode = normalizeUkPostcode(input.postcode)
   if (!isValidUkPostcode(normalizedPostcode)) {
+    console.error("[submitProperty] invalid UK postcode after normalise")
     return { ok: false, error: "Enter a valid UK postcode." }
   }
   const address = input.address.trim()
@@ -41,8 +42,10 @@ export async function submitProperty(input: {
       })
       revalidatePath("/")
       revalidatePath("/properties")
+      revalidatePath(`/properties/${id}`)
       return { ok: true, id }
     } catch (e: unknown) {
+      console.error("[submitProperty] Cockroach error:", e)
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
         const dup = await crdbFindDuplicateProperty(address, normalizedPostcode)
         if (dup) return { ok: false, error: "duplicate", existingId: dup }
@@ -107,11 +110,12 @@ export async function submitReview(input: {
   if (isCockroachEnabled()) {
     try {
       await crdbInsertReview(payload)
-      revalidatePath(`/properties/${input.property_id}`)
+      revalidatePath(`/properties/${payload.property_id}`)
       revalidatePath("/")
       revalidatePath("/properties")
       return { ok: true }
     } catch (e: unknown) {
+      console.error("[submitReview] Cockroach error:", e)
       const msg = e instanceof Error ? e.message : "Failed to submit review."
       return { ok: false, error: msg }
     }
@@ -129,7 +133,7 @@ export async function submitReview(input: {
     return { ok: false, error: submitError.message }
   }
 
-  revalidatePath(`/properties/${input.property_id}`)
+  revalidatePath(`/properties/${payload.property_id}`)
   revalidatePath("/")
   revalidatePath("/properties")
   return { ok: true }
