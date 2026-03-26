@@ -5,6 +5,7 @@ generator client {
 
 datasource db {
   provider = "cockroachdb"
+  url      = env("DATABASE_URL")
 }
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.

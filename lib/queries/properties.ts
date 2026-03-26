@@ -165,7 +165,8 @@ export async function queryPropertyDetail(id: string): Promise<PropertyDetail | 
               : String(r.created_at),
         })),
       }
-    } catch {
+    } catch (e) {
+      console.error("[queryPropertyDetail] Cockroach error:", e)
       return null
     }
   }
@@ -182,6 +183,9 @@ export async function queryPropertyDetail(id: string): Promise<PropertyDetail | 
     .eq("id", id)
     .single()
 
+  if (error) {
+    console.error("[queryPropertyDetail] Supabase error:", error.message)
+  }
   if (error || !property) return null
 
   const row = property as PropertyDetail & { reviews?: PropertyDetail["reviews"] }
