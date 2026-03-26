@@ -7,6 +7,8 @@ import {
   pocAddReview,
   pocFindDuplicateProperty,
 } from "@/lib/poc-store"
+import { isValidUkPostcode, normalizeUkPostcode } from "@/lib/address/uk-postcode"
+import { validateReviewComment } from "@/lib/review-validation"
 
 export async function pocSubmitProperty(input: {
   address: string
@@ -17,7 +19,10 @@ export async function pocSubmitProperty(input: {
     return { ok: false, error: "POC mode is off." }
   }
 
-  const normalizedPostcode = input.postcode.trim().toUpperCase().replace(/\s+/g, " ")
+  const normalizedPostcode = normalizeUkPostcode(input.postcode)
+  if (!isValidUkPostcode(normalizedPostcode)) {
+    return { ok: false, error: "Enter a valid UK postcode." }
+  }
   const existingId = pocFindDuplicateProperty(input.address, normalizedPostcode)
   if (existingId) {
     return { ok: false as const, error: "duplicate", existingId }
@@ -42,6 +47,11 @@ export async function pocSubmitReview(input: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!isMockDataEnabled()) {
     return { ok: false, error: "POC mode is off." }
+  }
+
+  const commentCheck = validateReviewComment(input.comment)
+  if (!commentCheck.ok) {
+    return { ok: false, error: commentCheck.error }
   }
 
   pocAddReview(input)

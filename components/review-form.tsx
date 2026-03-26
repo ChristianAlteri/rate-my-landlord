@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Star, Shield, Send } from "lucide-react"
 import { submitReview } from "@/app/actions/submit"
+import { countWords, MAX_COMMENT_CHARS, MAX_REVIEW_WORDS } from "@/lib/review-validation"
 
 interface ReviewFormProps {
   propertyId: string
@@ -25,6 +26,7 @@ export function ReviewForm({ propertyId }: ReviewFormProps) {
   const router = useRouter()
 
   const displayRating = hoverRating || rating
+  const wordCount = countWords(comment)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,8 +40,17 @@ export function ReviewForm({ propertyId }: ReviewFormProps) {
       setError("Please select a rating")
       return
     }
-    if (!comment.trim()) {
+    const commentTrimmed = comment.trim()
+    if (!commentTrimmed) {
       setError("Please write a review")
+      return
+    }
+    if (commentTrimmed.length > MAX_COMMENT_CHARS) {
+      setError("Review is too long.")
+      return
+    }
+    if (countWords(commentTrimmed) > MAX_REVIEW_WORDS) {
+      setError(`Reviews are limited to ${MAX_REVIEW_WORDS} words.`)
       return
     }
 
@@ -50,7 +61,7 @@ export function ReviewForm({ propertyId }: ReviewFormProps) {
         property_id: propertyId,
         username: username.trim(),
         rating,
-        comment: comment.trim(),
+        comment: commentTrimmed,
       })
       if (!result.ok) {
         setError(result.error)
@@ -142,11 +153,13 @@ export function ReviewForm({ propertyId }: ReviewFormProps) {
               placeholder="What was it like renting here?"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              rows={4}
-              maxLength={1000}
+              rows={6}
+              maxLength={MAX_COMMENT_CHARS}
               aria-invalid={!!error && !comment.trim()}
             />
-            <p className="text-right text-xs text-muted-foreground">{comment.length}/1000</p>
+            <p className="text-right text-xs text-muted-foreground">
+              {wordCount}/{MAX_REVIEW_WORDS} words
+            </p>
           </div>
 
           {error && (

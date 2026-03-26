@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select"
 import { Plus, Home, AlertCircle } from "lucide-react"
 import { submitProperty } from "@/app/actions/submit"
+import { AddressAutocomplete } from "@/components/address-autocomplete"
 
 interface AddPropertyFormProps {
   defaultAddress?: string
@@ -45,11 +46,32 @@ export function AddPropertyForm({ defaultAddress = "", defaultPostcode = "", tri
   const [postcode, setPostcode] = useState(defaultPostcode)
   const [managedBy, setManagedBy] = useState("")
   const [agencyName, setAgencyName] = useState("")
+  const [sessionToken, setSessionToken] = useState("")
+  const [addressGateOk, setAddressGateOk] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    if (open) {
+      setSessionToken(crypto.randomUUID())
+      setAddressGateOk(false)
+      setError(null)
+    }
+  }, [open])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    if (!addressGateOk) {
+      setError("Pick an address from the suggestions, or use manual entry.")
+      return
+    }
+
+    if (!address.trim() || !postcode.trim()) {
+      setError("Address and postcode are required.")
+      return
+    }
+
     setIsSubmitting(true)
 
     const normalizedPostcode = postcode.trim().toUpperCase().replace(/\s+/g, " ")
@@ -101,7 +123,8 @@ export function AddPropertyForm({ defaultAddress = "", defaultPostcode = "", tri
             Add a New Property
           </DialogTitle>
           <DialogDescription>
-            Can&apos;t find your property? Add it here so you and others can leave reviews.
+            Search for a UK address — we match Google’s directory when configured on the server, so listings stay
+            consistent and duplicates drop.
           </DialogDescription>
         </DialogHeader>
 
@@ -116,31 +139,14 @@ export function AddPropertyForm({ defaultAddress = "", defaultPostcode = "", tri
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="address">Street Address *</Label>
-            <Input
-              id="address"
-              name="address"
-              autoComplete="street-address"
-              placeholder="e.g., 42 Victoria Road"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="postcode">Postcode *</Label>
-            <Input
-              id="postcode"
-              name="postcode"
-              autoComplete="postal-code"
-              placeholder="e.g., E8 3QQ"
-              value={postcode}
-              onChange={(e) => setPostcode(e.target.value)}
-              required
-            />
-          </div>
+          <AddressAutocomplete
+            sessionToken={sessionToken}
+            address={address}
+            postcode={postcode}
+            onAddressChange={setAddress}
+            onPostcodeChange={setPostcode}
+            onVerificationChange={setAddressGateOk}
+          />
 
           <div className="space-y-2">
             <Label htmlFor="managed-by">Managed by</Label>
@@ -174,7 +180,7 @@ export function AddPropertyForm({ defaultAddress = "", defaultPostcode = "", tri
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || !addressGateOk}>
               {isSubmitting ? "Adding..." : "Add Property"}
             </Button>
           </div>

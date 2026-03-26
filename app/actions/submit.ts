@@ -10,6 +10,8 @@ import {
 } from "@/lib/db/cockroach"
 import { createClient } from "@/lib/supabase/server"
 import { pocSubmitProperty, pocSubmitReview } from "@/app/actions/poc-data"
+import { isValidUkPostcode, normalizeUkPostcode } from "@/lib/address/uk-postcode"
+import { validateReviewComment } from "@/lib/review-validation"
 
 export async function submitProperty(input: {
   address: string
@@ -20,7 +22,10 @@ export async function submitProperty(input: {
     return pocSubmitProperty(input)
   }
 
-  const normalizedPostcode = input.postcode.trim().toUpperCase().replace(/\s+/g, " ")
+  const normalizedPostcode = normalizeUkPostcode(input.postcode)
+  if (!isValidUkPostcode(normalizedPostcode)) {
+    return { ok: false, error: "Enter a valid UK postcode." }
+  }
   const address = input.address.trim()
 
   if (isCockroachEnabled()) {
@@ -88,13 +93,20 @@ export async function submitReview(input: {
   rating: number
   comment: string
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const commentCheck = validateReviewComment(input.comment)
+  if (!commentCheck.ok) {
+    return { ok: false, error: commentCheck.error }
+  }
+
+  const payload = { ...input, comment: input.comment.trim() }
+
   if (isMockDataEnabled()) {
-    return pocSubmitReview(input)
+    return pocSubmitReview(payload)
   }
 
   if (isCockroachEnabled()) {
     try {
-      await crdbInsertReview(input)
+      await crdbInsertReview(payload)
       revalidatePath(`/properties/${input.property_id}`)
       revalidatePath("/")
       revalidatePath("/properties")
@@ -107,10 +119,10 @@ export async function submitReview(input: {
 
   const supabase = await createClient()
   const { error: submitError } = await supabase.from("reviews").insert({
-    property_id: input.property_id,
-    username: input.username,
-    rating: input.rating,
-    comment: input.comment.trim(),
+    property_id: payload.property_id,
+    username: payload.username,
+    rating: payload.rating,
+    comment: payload.comment,
   })
 
   if (submitError) {
