@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic"
 import { PropertySearch } from "@/components/property-search"
 import { FeaturedProperties } from "@/components/featured-properties"
 import { HowItWorks } from "@/components/how-it-works"
+import { ShareTheMovement } from "@/components/share-the-movement"
 import { Footer } from "@/components/footer"
 import { SiteHeader } from "@/components/site-header"
 
@@ -19,6 +20,7 @@ export default async function Home() {
       <PropertySearch variant="hero" />
       <FeaturedProperties properties={propertiesWithRatings} />
       <HowItWorks />
+      <ShareTheMovement />
       <Footer />
       </main>
     </>

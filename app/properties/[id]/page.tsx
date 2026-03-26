@@ -1,14 +1,16 @@
 import { queryPropertyDetail } from "@/lib/queries/properties"
+import { getSiteUrl } from "@/lib/site-url"
 import { notFound } from "next/navigation"
-
-export const dynamic = "force-dynamic"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Star, MapPin, User, ArrowLeft } from "lucide-react"
 import { ReviewForm } from "@/components/review-form"
 import { ReviewList } from "@/components/review-list"
+import { ShareListing } from "@/components/share-listing"
 import { Footer } from "@/components/footer"
 import { SiteHeader } from "@/components/site-header"
+
+export const dynamic = "force-dynamic"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -21,6 +23,10 @@ export default async function PropertyPage({ params }: Props) {
   if (!property) {
     notFound()
   }
+
+  const siteUrl = await getSiteUrl()
+  const shareUrl = `${siteUrl}/properties/${id}`
+  const addressLabel = `${property.address}, ${property.postcode}`
 
   const reviews = property.reviews || []
   const avgRating =
@@ -72,6 +78,8 @@ export default async function PropertyPage({ params }: Props) {
                   </div>
                 </CardContent>
               </Card>
+
+              <ShareListing shareUrl={shareUrl} addressLabel={addressLabel} />
 
               <div>
                 <h2 className="mb-4 text-xl font-semibold text-foreground">
