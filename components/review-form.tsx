@@ -2,15 +2,13 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Star, Shield, Send } from "lucide-react"
-import { isMockDataEnabled } from "@/lib/data-mode"
-import { pocSubmitReview } from "@/app/actions/poc-data"
+import { submitReview } from "@/app/actions/submit"
 
 interface ReviewFormProps {
   propertyId: string
@@ -48,26 +46,15 @@ export function ReviewForm({ propertyId }: ReviewFormProps) {
     setIsSubmitting(true)
 
     try {
-      if (isMockDataEnabled()) {
-        const result = await pocSubmitReview({
-          property_id: propertyId,
-          username: username.trim(),
-          rating,
-          comment: comment.trim(),
-        })
-        if (!result.ok) {
-          setError(result.error)
-          return
-        }
-      } else {
-        const supabase = createClient()
-        const { error: submitError } = await supabase.from("reviews").insert({
-          property_id: propertyId,
-          username: username.trim(),
-          rating,
-          comment: comment.trim(),
-        })
-        if (submitError) throw submitError
+      const result = await submitReview({
+        property_id: propertyId,
+        username: username.trim(),
+        rating,
+        comment: comment.trim(),
+      })
+      if (!result.ok) {
+        setError(result.error)
+        return
       }
 
       setSuccess(true)

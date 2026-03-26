@@ -1,4 +1,9 @@
-import { isMockDataEnabled } from "@/lib/data-mode"
+import { isCockroachEnabled, isMockDataEnabled } from "@/lib/data-mode"
+import {
+  crdbQueryHomeProperties,
+  crdbQueryPropertiesList,
+  crdbQueryPropertyDetail,
+} from "@/lib/db/cockroach"
 import {
   pocGetPropertyWithReviews,
   pocListPropertiesWithRatings,
@@ -52,6 +57,14 @@ export async function queryHomeProperties(): Promise<PropertyWithRatingRows[]> {
     return pocListPropertiesWithRatings({ limit: 6 })
   }
 
+  if (isCockroachEnabled()) {
+    try {
+      return await crdbQueryHomeProperties()
+    } catch {
+      return []
+    }
+  }
+
   const supabase = await createClient()
   const { data: properties } = await supabase
     .from("properties")
@@ -70,6 +83,14 @@ export async function queryHomeProperties(): Promise<PropertyWithRatingRows[]> {
 export async function queryPropertiesList(search?: string): Promise<PropertyWithRatingRows[]> {
   if (isMockDataEnabled()) {
     return pocListPropertiesWithRatings({ search })
+  }
+
+  if (isCockroachEnabled()) {
+    try {
+      return await crdbQueryPropertiesList(search)
+    } catch {
+      return []
+    }
   }
 
   const supabase = await createClient()
@@ -124,6 +145,28 @@ export async function queryPropertyDetail(id: string): Promise<PropertyDetail | 
         comment: r.comment,
         created_at: r.created_at,
       })),
+    }
+  }
+
+  if (isCockroachEnabled()) {
+    try {
+      const row = await crdbQueryPropertyDetail(id)
+      if (!row) return null
+      return {
+        ...row,
+        reviews: row.reviews.map((r) => ({
+          id: r.id,
+          username: r.username,
+          rating: r.rating,
+          comment: r.comment,
+          created_at:
+            r.created_at instanceof Date
+              ? r.created_at.toISOString()
+              : String(r.created_at),
+        })),
+      }
+    } catch {
+      return null
     }
   }
 

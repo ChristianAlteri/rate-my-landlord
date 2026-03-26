@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,8 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Plus, Home, AlertCircle } from "lucide-react"
-import { isMockDataEnabled } from "@/lib/data-mode"
-import { pocSubmitProperty } from "@/app/actions/poc-data"
+import { submitProperty } from "@/app/actions/submit"
 
 interface AddPropertyFormProps {
   defaultAddress?: string
@@ -61,75 +59,28 @@ export function AddPropertyForm({ defaultAddress = "", defaultPostcode = "", tri
       landlordName = `Managed by ${agencyName.trim()}`
     }
 
-    if (isMockDataEnabled()) {
-      const result = await pocSubmitProperty({
-        address: address.trim(),
-        postcode: normalizedPostcode,
-        landlord_name: landlordName || null,
-      })
-      setIsSubmitting(false)
-
-      if (!result.ok) {
-        if ("existingId" in result && result.existingId) {
-          setError("This property already exists! Redirecting you there...")
-          setTimeout(() => {
-            setOpen(false)
-            router.push(`/properties/${result.existingId}`)
-          }, 1200)
-          return
-        }
-        setError(result.error === "POC mode is off." ? result.error : "Could not add property.")
-        return
-      }
-
-      setOpen(false)
-      router.push(`/properties/${result.id}`)
-      router.refresh()
-      return
-    }
-
-    const supabase = createClient()
-
-    const { data: existing } = await supabase
-      .from("properties")
-      .select("id")
-      .ilike("address", address.trim())
-      .ilike("postcode", normalizedPostcode)
-      .maybeSingle()
-
-    if (existing) {
-      setError("This property already exists! Redirecting you there...")
-      setIsSubmitting(false)
-      setTimeout(() => {
-        setOpen(false)
-        router.push(`/properties/${existing.id}`)
-      }, 1500)
-      return
-    }
-
-    const { data, error: insertError } = await supabase
-      .from("properties")
-      .insert({
-        address: address.trim(),
-        postcode: normalizedPostcode,
-        landlord_name: landlordName || null,
-      })
-      .select("id")
-      .single()
-
+    const result = await submitProperty({
+      address: address.trim(),
+      postcode: normalizedPostcode,
+      landlord_name: landlordName || null,
+    })
     setIsSubmitting(false)
 
-    if (insertError) {
-      if (insertError.code === "23505") {
-        setError("This property already exists in the database.")
-      } else {
-        setError(`Failed to add property: ${insertError.message}`)
+    if (!result.ok) {
+      if ("existingId" in result && result.existingId) {
+        setError("This property already exists! Redirecting you there...")
+        setTimeout(() => {
+          setOpen(false)
+          router.push(`/properties/${result.existingId}`)
+        }, 1200)
+        return
       }
+      setError(result.error)
       return
     }
 
     setOpen(false)
-    router.push(`/properties/${data.id}`)
+    router.push(`/properties/${result.id}`)
     router.refresh()
   }
 
